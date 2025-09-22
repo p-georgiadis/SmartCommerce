@@ -1,0 +1,118 @@
+# Azure DevOps Template for building .NET services
+# This template provides a reusable build process for all .NET microservices
+
+parameters:
+- name: serviceName
+  type: string
+  displayName: 'Service Name'
+- name: servicePath
+  type: string
+  displayName: 'Path to service directory'
+- name: buildConfiguration
+  type: string
+  default: 'Release'
+  displayName: 'Build configuration'
+- name: dotNetVersion
+  type: string
+  default: '8.x'
+  displayName: '.NET version'
+- name: runTests
+  type: boolean
+  default: true
+  displayName: 'Run unit tests'
+- name: publishArtifacts
+  type: boolean
+  default: true
+  displayName: 'Publish build artifacts'
+- name: containerRegistry
+  type: string
+  default: 'smartcommerceacr.azurecr.io'
+  displayName: 'Container registry'
+
+steps:
+- task: UseDotNet@2
+  displayName: 'Use .NET SDK ${{ parameters.dotNetVersion }}'
+  inputs:
+    version: ${{ parameters.dotNetVersion }}
+    includePreviewVersions: false
+
+- task: DotNetCoreCLI@2
+  displayName: 'Restore NuGet packages'
+  inputs:
+    command: 'restore'
+    projects: '${{ parameters.servicePath }}/*.csproj'
+    feedsToUse: 'select'
+    verbosityRestore: 'Minimal'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Build ${{ parameters.serviceName }}'
+  inputs:
+    command: 'build'
+    projects: '${{ parameters.servicePath }}/*.csproj'
+    arguments: '--configuration ${{ parameters.buildConfiguration }} --no-restore'
+
+- ${{ if eq(parameters.runTests, true) }}:
+  - task: DotNetCoreCLI@2
+    displayName: 'Run unit tests'
+    inputs:
+      command: 'test'
+      projects: '${{ parameters.servicePath }}/**/*Tests.csproj'
+      arguments: '--configuration ${{ parameters.buildConfiguration }} --no-build --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/TestResults'
+      publishTestResults: true
+
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish code coverage'
+    condition: succeededOrFailed()
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: '$(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml'
+      reportDirectory: '$(Agent.TempDirectory)/TestResults/CoverageReport'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Publish ${{ parameters.serviceName }}'
+  inputs:
+    command: 'publish'
+    projects: '${{ parameters.servicePath }}/*.csproj'
+    arguments: '--configuration ${{ parameters.buildConfiguration }} --no-build --output $(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}'
+    zipAfterPublish: true
+    modifyOutputPath: false
+
+- ${{ if eq(parameters.publishArtifacts, true) }}:
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish build artifacts'
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}'
+      artifactName: '${{ parameters.serviceName }}-build'
+      publishLocation: 'pipeline'
+
+- task: Docker@2
+  displayName: 'Build and push Docker image'
+  inputs:
+    command: 'buildAndPush'
+    repository: '${{ parameters.containerRegistry }}/${{ lower(parameters.serviceName) }}'
+    dockerfile: '${{ parameters.servicePath }}/Dockerfile'
+    containerRegistry: 'acr-connection'
+    tags: |
+      $(Build.BuildId)
+      latest
+      $(Build.SourceBranchName)
+
+- task: PowerShell@2
+  displayName: 'Security scan - Source code'
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "Running security scan on ${{ parameters.serviceName }}"
+      # Add security scanning logic here
+      # This could include dependency vulnerability scanning, SAST tools, etc.
+    errorActionPreference: 'continue'
+
+- task: PowerShell@2
+  displayName: 'Generate SBOM (Software Bill of Materials)'
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "Generating SBOM for ${{ parameters.serviceName }}"
+      # Add SBOM generation logic here
+      # This could include tools like Microsoft SBOM Tool or similar
+    errorActionPreference: 'continue'

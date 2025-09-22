@@ -1,0 +1,111 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "baseName": {
+      "value": "smartcommerce"
+    },
+    "environment": {
+      "value": "staging"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "sqlAdminLogin": {
+      "value": "sqladmin"
+    },
+    "sqlAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{subscription-id}/resourceGroups/smartcommerce-shared-rg/providers/Microsoft.KeyVault/vaults/smartcommerce-shared-kv"
+        },
+        "secretName": "SqlAdminPassword"
+      }
+    },
+    "appServicePlanSku": {
+      "value": {
+        "name": "S1",
+        "tier": "Standard",
+        "capacity": 2
+      }
+    },
+    "containerAppsCpuLimit": {
+      "value": "1.0"
+    },
+    "containerAppsMemoryLimit": {
+      "value": "2Gi"
+    },
+    "sqlDatabaseSku": {
+      "value": {
+        "name": "S1",
+        "tier": "Standard",
+        "capacity": 20
+      }
+    },
+    "redisCacheSku": {
+      "value": {
+        "name": "Standard",
+        "family": "C",
+        "capacity": 1
+      }
+    },
+    "serviceBusSku": {
+      "value": {
+        "name": "Standard",
+        "tier": "Standard"
+      }
+    },
+    "enableDetailedLogging": {
+      "value": true
+    },
+    "enableAutoScaling": {
+      "value": true
+    },
+    "minReplicas": {
+      "value": 2
+    },
+    "maxReplicas": {
+      "value": 5
+    },
+    "allowedOrigins": {
+      "value": [
+        "https://smartcommerce-web-staging.azurewebsites.net",
+        "https://staging.smartcommerce.com"
+      ]
+    },
+    "enableApplicationInsights": {
+      "value": true
+    },
+    "retentionInDays": {
+      "value": 90
+    },
+    "enableVirtualNetwork": {
+      "value": true
+    },
+    "enablePrivateEndpoints": {
+      "value": false
+    },
+    "enableZoneRedundancy": {
+      "value": false
+    },
+    "enableBackupRetention": {
+      "value": true
+    },
+    "backupRetentionDays": {
+      "value": 7
+    },
+    "enableAdvancedThreatProtection": {
+      "value": true
+    },
+    "tags": {
+      "value": {
+        "Environment": "Staging",
+        "Project": "SmartCommerce",
+        "Owner": "QA Team",
+        "CostCenter": "Engineering",
+        "Purpose": "E-commerce Platform Staging",
+        "DataClassification": "Internal"
+      }
+    }
+  }
+}

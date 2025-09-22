@@ -1,0 +1,152 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "baseName": {
+      "value": "smartcommerce"
+    },
+    "environment": {
+      "value": "prod"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "sqlAdminLogin": {
+      "value": "sqladmin"
+    },
+    "sqlAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{subscription-id}/resourceGroups/smartcommerce-shared-rg/providers/Microsoft.KeyVault/vaults/smartcommerce-shared-kv"
+        },
+        "secretName": "SqlAdminPassword"
+      }
+    },
+    "appServicePlanSku": {
+      "value": {
+        "name": "P1v3",
+        "tier": "PremiumV3",
+        "capacity": 3
+      }
+    },
+    "containerAppsCpuLimit": {
+      "value": "2.0"
+    },
+    "containerAppsMemoryLimit": {
+      "value": "4Gi"
+    },
+    "sqlDatabaseSku": {
+      "value": {
+        "name": "S2",
+        "tier": "Standard",
+        "capacity": 50
+      }
+    },
+    "redisCacheSku": {
+      "value": {
+        "name": "Premium",
+        "family": "P",
+        "capacity": 1
+      }
+    },
+    "serviceBusSku": {
+      "value": {
+        "name": "Premium",
+        "tier": "Premium"
+      }
+    },
+    "enableDetailedLogging": {
+      "value": false
+    },
+    "enableAutoScaling": {
+      "value": true
+    },
+    "minReplicas": {
+      "value": 3
+    },
+    "maxReplicas": {
+      "value": 10
+    },
+    "allowedOrigins": {
+      "value": [
+        "https://www.smartcommerce.com",
+        "https://smartcommerce.com",
+        "https://app.smartcommerce.com"
+      ]
+    },
+    "enableApplicationInsights": {
+      "value": true
+    },
+    "retentionInDays": {
+      "value": 730
+    },
+    "enableVirtualNetwork": {
+      "value": true
+    },
+    "enablePrivateEndpoints": {
+      "value": true
+    },
+    "enableZoneRedundancy": {
+      "value": true
+    },
+    "enableBackupRetention": {
+      "value": true
+    },
+    "backupRetentionDays": {
+      "value": 35
+    },
+    "enableGeoReplication": {
+      "value": true
+    },
+    "secondaryRegion": {
+      "value": "westus2"
+    },
+    "enableAdvancedThreatProtection": {
+      "value": true
+    },
+    "enableAuditLogs": {
+      "value": true
+    },
+    "enableEncryptionAtRest": {
+      "value": true
+    },
+    "enableDdosProtection": {
+      "value": true
+    },
+    "enableWaf": {
+      "value": true
+    },
+    "enableCdn": {
+      "value": true
+    },
+    "enableTrafficManager": {
+      "value": true
+    },
+    "maintenanceWindow": {
+      "value": {
+        "dayOfWeek": "Sunday",
+        "startHour": 2,
+        "durationHours": 4
+      }
+    },
+    "alertRecipients": {
+      "value": [
+        "ops-team@smartcommerce.com",
+        "devops@smartcommerce.com"
+      ]
+    },
+    "tags": {
+      "value": {
+        "Environment": "Production",
+        "Project": "SmartCommerce",
+        "Owner": "Operations Team",
+        "CostCenter": "Engineering",
+        "Purpose": "E-commerce Platform Production",
+        "DataClassification": "Confidential",
+        "Compliance": "PCI-DSS",
+        "BackupRequired": "Yes",
+        "MonitoringRequired": "Critical"
+      }
+    }
+  }
+}

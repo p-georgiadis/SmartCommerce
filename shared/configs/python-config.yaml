@@ -1,0 +1,319 @@
+# SmartCommerce Python Services Configuration
+# This file contains shared configuration for all Python microservices
+
+# Application Settings
+application:
+  name: "SmartCommerce"
+  version: "1.0.0"
+  environment: "development"  # development, staging, production
+  debug: true
+  timezone: "UTC"
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "json"  # json, console
+  structured: true
+  correlation_id: true
+  performance_tracking: true
+  handlers:
+    console:
+      enabled: true
+      level: "INFO"
+    file:
+      enabled: false
+      path: "/var/log/smartcommerce/"
+      max_size: "100MB"
+      backup_count: 5
+    azure:
+      enabled: true
+      connection_string: "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+
+# Database Configuration
+database:
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "smartcommerce"
+    username: "postgres"
+    password: "${DATABASE_PASSWORD}"
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+    pool_recycle: 1800
+    echo: false
+  redis:
+    host: "localhost"
+    port: 6379
+    password: "${REDIS_PASSWORD}"
+    db: 0
+    socket_timeout: 30
+    socket_connect_timeout: 30
+    health_check_interval: 30
+    max_connections: 50
+
+# Azure Services Configuration
+azure:
+  subscription_id: "${AZURE_SUBSCRIPTION_ID}"
+  tenant_id: "${AZURE_TENANT_ID}"
+
+  key_vault:
+    url: "${AZURE_KEY_VAULT_URL}"
+
+  service_bus:
+    connection_string: "${AZURE_SERVICE_BUS_CONNECTION_STRING}"
+    queues:
+      order_events: "order-events"
+      payment_events: "payment-events"
+      user_events: "user-events"
+      notification_events: "notification-events"
+      inventory_events: "inventory-events"
+      search_events: "search-events"
+      fraud_events: "fraud-events"
+      ml_events: "ml-events"
+    topics:
+      domain_events: "domain-events"
+
+  storage:
+    connection_string: "${AZURE_STORAGE_CONNECTION_STRING}"
+    containers:
+      ml_models: "ml-models"
+      datasets: "datasets"
+      reports: "reports"
+      backups: "backups"
+
+  application_insights:
+    connection_string: "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+    instrumentation_key: "${APPLICATIONINSIGHTS_INSTRUMENTATION_KEY}"
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+  timeout: 30
+  keep_alive: 2
+  max_requests: 1000
+  max_requests_jitter: 50
+
+  cors:
+    allow_origins:
+      - "http://localhost:3000"
+      - "https://localhost:3001"
+      - "https://*.azurewebsites.net"
+      - "https://*.azurecontainerapps.io"
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["*"]
+    allow_credentials: true
+
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+
+  documentation:
+    title: "SmartCommerce API"
+    description: "SmartCommerce microservices API"
+    version: "1.0.0"
+    contact:
+      name: "SmartCommerce Team"
+      email: "dev@smartcommerce.com"
+    license:
+      name: "MIT"
+      url: "https://opensource.org/licenses/MIT"
+
+# Security Configuration
+security:
+  secret_key: "${SECRET_KEY}"
+  algorithm: "HS256"
+  access_token_expire_minutes: 30
+  refresh_token_expire_days: 7
+
+  encryption:
+    key: "${ENCRYPTION_KEY}"
+    algorithm: "AES-256-GCM"
+
+  hashing:
+    algorithm: "bcrypt"
+    rounds: 12
+
+# Machine Learning Configuration
+machine_learning:
+  models:
+    cache_dir: "/tmp/ml_models"
+    download_timeout: 300
+
+    recommendation:
+      collaborative_filtering:
+        factors: 50
+        regularization: 0.01
+        iterations: 30
+        use_gpu: false
+      content_based:
+        similarity_threshold: 0.7
+        max_features: 10000
+      hybrid:
+        collaborative_weight: 0.6
+        content_weight: 0.4
+
+    fraud_detection:
+      model_type: "ensemble"
+      threshold: 0.7
+      features:
+        - transaction_amount
+        - user_behavior
+        - device_fingerprint
+        - location_data
+        - time_patterns
+
+    price_optimization:
+      algorithm: "dynamic_pricing"
+      factors:
+        - demand
+        - competition
+        - inventory_level
+        - seasonality
+        - profit_margin
+      update_frequency: "hourly"
+
+    search:
+      semantic_search:
+        model: "sentence-transformers/all-MiniLM-L6-v2"
+        similarity_threshold: 0.7
+        max_results: 100
+      nlp:
+        spacy_model: "en_core_web_lg"
+        language_detection: true
+        entity_extraction: true
+
+# Search Configuration
+search:
+  engines:
+    elasticsearch:
+      enabled: true
+      url: "${ELASTICSEARCH_URL}"
+      index_prefix: "smartcommerce"
+      refresh_interval: "1s"
+      number_of_shards: 1
+      number_of_replicas: 0
+
+    opensearch:
+      enabled: false
+      url: "${OPENSEARCH_URL}"
+
+    whoosh:
+      enabled: true
+      index_dir: "/tmp/search_index"
+
+  indexing:
+    batch_size: 1000
+    timeout: 300
+    retry_attempts: 3
+
+  analytics:
+    track_searches: true
+    track_clicks: true
+    track_conversions: true
+    session_timeout: 1800
+
+# Caching Configuration
+caching:
+  default_ttl: 300  # 5 minutes
+  max_ttl: 3600     # 1 hour
+
+  policies:
+    user_sessions: 1800      # 30 minutes
+    product_data: 900        # 15 minutes
+    search_results: 300      # 5 minutes
+    recommendations: 600     # 10 minutes
+    ml_predictions: 1800     # 30 minutes
+
+# Monitoring Configuration
+monitoring:
+  health_checks:
+    enabled: true
+    interval: 30
+    timeout: 10
+
+  metrics:
+    enabled: true
+    endpoint: "/metrics"
+    include_labels: true
+
+  tracing:
+    enabled: true
+    sample_rate: 0.1
+    service_name: "${SERVICE_NAME}"
+    service_version: "1.0.0"
+
+# Performance Configuration
+performance:
+  async_pool_size: 100
+  max_concurrent_requests: 1000
+  request_timeout: 30
+
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 60
+    expected_exception: "Exception"
+
+  retry:
+    max_attempts: 3
+    backoff_factor: 2
+    max_delay: 60
+
+# Feature Flags
+features:
+  enable_swagger: true
+  enable_metrics: true
+  enable_tracing: true
+  enable_rate_limiting: true
+  enable_caching: true
+  enable_circuit_breaker: true
+  enable_ml_inference: true
+  enable_fraud_detection: true
+  enable_semantic_search: true
+  enable_personalization: true
+
+# Business Rules
+business:
+  currency:
+    default: "USD"
+    supported: ["USD", "EUR", "GBP", "CAD"]
+
+  pricing:
+    min_price: 0.01
+    max_price: 999999.99
+    decimal_places: 2
+
+  recommendations:
+    max_per_request: 50
+    min_score: 0.1
+    diversity_factor: 0.3
+
+  fraud_detection:
+    risk_thresholds:
+      low: 0.3
+      medium: 0.6
+      high: 0.8
+      critical: 0.95
+    auto_block_threshold: 0.95
+
+  search:
+    max_results: 100
+    default_results: 20
+    max_query_length: 500
+    min_query_length: 2
+
+# Development Settings
+development:
+  auto_reload: true
+  debug_toolbar: true
+  profiling: false
+  mock_external_services: false
+
+  test_data:
+    seed_database: true
+    generate_fake_data: true
+    fake_data_count: 1000

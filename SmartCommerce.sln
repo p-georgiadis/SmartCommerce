@@ -1,0 +1,183 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Services", "Services", "{B8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}"
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".NET Services", ".NET Services", "{C8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}"
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{D8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}"
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Infrastructure", "Infrastructure", "{E8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}"
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{F8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}"
+EndProject
+
+# .NET Service Projects
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartCommerce.OrderService", "services\dotnet-services\SmartCommerce.OrderService\SmartCommerce.OrderService.csproj", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartCommerce.CatalogService", "services\dotnet-services\SmartCommerce.CatalogService\SmartCommerce.CatalogService.csproj", "{22222222-2222-2222-2222-222222222222}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartCommerce.PaymentService", "services\dotnet-services\SmartCommerce.PaymentService\SmartCommerce.PaymentService.csproj", "{33333333-3333-3333-3333-333333333333}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartCommerce.UserService", "services\dotnet-services\SmartCommerce.UserService\SmartCommerce.UserService.csproj", "{44444444-4444-4444-4444-444444444444}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartCommerce.NotificationService", "services\dotnet-services\SmartCommerce.NotificationService\SmartCommerce.NotificationService.csproj", "{55555555-5555-5555-5555-555555555555}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartCommerce.Shared", "services\dotnet-services\SmartCommerce.Shared\SmartCommerce.Shared.csproj", "{66666666-6666-6666-6666-666666666666}"
+EndProject
+
+# Solution Items
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{77777777-7777-7777-7777-777777777777}"
+	ProjectSection(SolutionItems) = preProject
+		README.MD = README.MD
+		ARCHITECHTURE.md = ARCHITECHTURE.md
+		.gitignore = .gitignore
+		global.json = global.json
+		Directory.Build.props = Directory.Build.props
+		docker-compose.yml = docker-compose.yml
+		docker-compose.dev.yml = docker-compose.dev.yml
+	EndProjectSection
+EndProject
+
+# Python Services (for organization - not built by .NET)
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Python Services", "Python Services", "{88888888-8888-8888-8888-888888888888}"
+	ProjectSection(SolutionItems) = preProject
+		services\python-services\recommendation-engine\app\main.py = services\python-services\recommendation-engine\app\main.py
+		services\python-services\recommendation-engine\requirements.txt = services\python-services\recommendation-engine\requirements.txt
+		services\python-services\price-optimization\app\main.py = services\python-services\price-optimization\app\main.py
+		services\python-services\fraud-detection\app\main.py = services\python-services\fraud-detection\app\main.py
+		services\python-services\inventory-analytics\app\main.py = services\python-services\inventory-analytics\app\main.py
+		services\python-services\search-service\app\main.py = services\python-services\search-service\app\main.py
+	EndProjectSection
+EndProject
+
+# Infrastructure
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bicep", "Bicep", "{99999999-9999-9999-9999-999999999999}"
+	ProjectSection(SolutionItems) = preProject
+		infrastructure\bicep\main.bicep = infrastructure\bicep\main.bicep
+		infrastructure\bicep\modules\app-service.bicep = infrastructure\bicep\modules\app-service.bicep
+		infrastructure\bicep\modules\container-app.bicep = infrastructure\bicep\modules\container-app.bicep
+		infrastructure\bicep\modules\keyvault.bicep = infrastructure\bicep\modules\keyvault.bicep
+		infrastructure\bicep\modules\network.bicep = infrastructure\bicep\modules\network.bicep
+		infrastructure\bicep\modules\servicebus.bicep = infrastructure\bicep\modules\servicebus.bicep
+		infrastructure\bicep\modules\sql.bicep = infrastructure\bicep\modules\sql.bicep
+	EndProjectSection
+EndProject
+
+# Pipelines
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Pipelines", "Pipelines", "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}"
+	ProjectSection(SolutionItems) = preProject
+		pipelines\azure-pipelines.yml = pipelines\azure-pipelines.yml
+		pipelines\templates\dotnet-build.yml = pipelines\templates\dotnet-build.yml
+		pipelines\templates\python-build.yml = pipelines\templates\python-build.yml
+		pipelines\templates\deploy-infrastructure.yml = pipelines\templates\deploy-infrastructure.yml
+		pipelines\scripts\security-scan.sh = pipelines\scripts\security-scan.sh
+	EndProjectSection
+EndProject
+
+# Shared Components
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Contracts", "Contracts", "{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB}"
+	ProjectSection(SolutionItems) = preProject
+		shared\contracts\Events.cs = shared\contracts\Events.cs
+		shared\contracts\events.py = shared\contracts\events.py
+	EndProjectSection
+EndProject
+
+# Tests
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Integration Tests", "Integration Tests", "{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC}"
+	ProjectSection(SolutionItems) = preProject
+		tests\integration\test_order_workflow.py = tests\integration\test_order_workflow.py
+	EndProjectSection
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Load Tests", "Load Tests", "{DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD}"
+	ProjectSection(SolutionItems) = preProject
+		tests\load\k6-load-test.js = tests\load\k6-load-test.js
+	EndProjectSection
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "E2E Tests", "E2E Tests", "{EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE}"
+	ProjectSection(SolutionItems) = preProject
+		tests\e2e\cypress.config.js = tests\e2e\cypress.config.js
+		tests\e2e\cypress\e2e\complete-purchase-flow.cy.js = tests\e2e\cypress\e2e\complete-purchase-flow.cy.js
+	EndProjectSection
+EndProject
+
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.Build.0 = Release|Any CPU
+
+		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.Build.0 = Release|Any CPU
+
+		{33333333-3333-3333-3333-333333333333}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33333333-3333-3333-3333-333333333333}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33333333-3333-3333-3333-333333333333}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33333333-3333-3333-3333-333333333333}.Release|Any CPU.Build.0 = Release|Any CPU
+
+		{44444444-4444-4444-4444-444444444444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44444444-4444-4444-4444-444444444444}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44444444-4444-4444-4444-444444444444}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44444444-4444-4444-4444-444444444444}.Release|Any CPU.Build.0 = Release|Any CPU
+
+		{55555555-5555-5555-5555-555555555555}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55555555-5555-5555-5555-555555555555}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55555555-5555-5555-5555-555555555555}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55555555-5555-5555-5555-555555555555}.Release|Any CPU.Build.0 = Release|Any CPU
+
+		{66666666-6666-6666-6666-666666666666}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66666666-6666-6666-6666-666666666666}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66666666-6666-6666-6666-666666666666}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66666666-6666-6666-6666-666666666666}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+
+	GlobalSection(NestedProjects) = preSolution
+		{C8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8} = {B8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{88888888-8888-8888-8888-888888888888} = {B8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+
+		{11111111-1111-1111-1111-111111111111} = {C8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{22222222-2222-2222-2222-222222222222} = {C8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{33333333-3333-3333-3333-333333333333} = {C8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{44444444-4444-4444-4444-444444444444} = {C8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{55555555-5555-5555-5555-555555555555} = {C8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{66666666-6666-6666-6666-666666666666} = {D8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+
+		{99999999-9999-9999-9999-999999999999} = {E8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA} = {E8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+
+		{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB} = {D8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+
+		{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC} = {F8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD} = {F8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+		{EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE} = {F8F3B3A1-8F3B-4A1A-9B3B-1A3956D46DE8}
+	EndGlobalSection
+
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {12345678-1234-1234-1234-123456789012}
+	EndGlobalSection
+EndGlobal

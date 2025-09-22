@@ -1,0 +1,314 @@
+# Docker Compose Override for Development
+# This file extends docker-compose.yml with development-specific settings
+
+version: '3.8'
+
+services:
+  # Development database with persistent storage
+  postgres:
+    environment:
+      - POSTGRES_DB=smartcommerce_dev
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=devpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+
+  # Development Redis with persistent storage
+  redis:
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    command: redis-server --appendonly yes
+
+  # Development SQL Server for .NET services
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smartcommerce-sqlserver-dev
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_dev_data:/var/opt/mssql
+    restart: unless-stopped
+
+  # Development Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: smartcommerce-elasticsearch-dev
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_dev_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+  # Development Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: smartcommerce-kibana-dev
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  # Development RabbitMQ (for local message broker)
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: smartcommerce-rabbitmq-dev
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=devpassword
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_dev_data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  # Development Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: smartcommerce-jaeger-dev
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "14250:14250"
+      - "14268:14268"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+    restart: unless-stopped
+
+  # Development Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: smartcommerce-prometheus-dev
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_dev_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  # Development Grafana for dashboards
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: smartcommerce-grafana-dev
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=devpassword
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Development MinIO for S3-compatible storage
+  minio:
+    image: minio/minio:RELEASE.2023-10-07T15-07-38Z
+    container_name: smartcommerce-minio-dev
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=devpassword
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_dev_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  # Development MailHog for email testing
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: smartcommerce-mailhog-dev
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+
+  # Development Nginx for reverse proxy
+  nginx-dev:
+    image: nginx:1.25-alpine
+    container_name: smartcommerce-nginx-dev
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - order-service
+      - catalog-service
+      - payment-service
+      - user-service
+      - notification-service
+    restart: unless-stopped
+
+  # .NET Services with development configurations
+  order-service:
+    build:
+      context: ./services/dotnet-services/SmartCommerce.OrderService
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=SmartCommerce;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - ConnectionStrings__Redis=redis:6379
+      - ServiceBus__ConnectionString=amqp://admin:devpassword@rabbitmq:5672
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./services/dotnet-services/SmartCommerce.OrderService:/app:delegated
+      - /app/bin
+      - /app/obj
+    depends_on:
+      - sqlserver
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  catalog-service:
+    build:
+      context: ./services/dotnet-services/SmartCommerce.CatalogService
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5002
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=SmartCommerce;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./services/dotnet-services/SmartCommerce.CatalogService:/app:delegated
+      - /app/bin
+      - /app/obj
+    depends_on:
+      - sqlserver
+      - redis
+    restart: unless-stopped
+
+  # Python Services with development configurations
+  recommendation-service:
+    build:
+      context: ./services/python-services/recommendation-engine
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql://postgres:devpassword@postgres:5432/smartcommerce_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./services/python-services/recommendation-engine:/app:delegated
+      - /app/__pycache__
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  search-service:
+    build:
+      context: ./services/python-services/search-service
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql://postgres:devpassword@postgres:5432/smartcommerce_dev
+      - REDIS_HOST=redis
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    ports:
+      - "8005:8000"
+    volumes:
+      - ./services/python-services/search-service:/app:delegated
+      - /app/__pycache__
+    depends_on:
+      - postgres
+      - redis
+      - elasticsearch
+    restart: unless-stopped
+
+  # Development tools
+  pgadmin:
+    image: dpage/pgadmin4:7.8
+    container_name: smartcommerce-pgadmin-dev
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@smartcommerce.com
+      - PGADMIN_DEFAULT_PASSWORD=devpassword
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: smartcommerce-redis-commander-dev
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  sqlserver_dev_data:
+    driver: local
+  elasticsearch_dev_data:
+    driver: local
+  rabbitmq_dev_data:
+    driver: local
+  prometheus_dev_data:
+    driver: local
+  grafana_dev_data:
+    driver: local
+  minio_dev_data:
+    driver: local
+  pgadmin_dev_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

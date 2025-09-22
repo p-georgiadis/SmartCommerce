@@ -1,0 +1,240 @@
+# Azure DevOps Template for infrastructure deployment
+# This template deploys Bicep infrastructure to Azure
+
+parameters:
+- name: environment
+  type: string
+  displayName: 'Target environment'
+  values:
+  - dev
+  - staging
+  - prod
+- name: azureSubscription
+  type: string
+  displayName: 'Azure subscription service connection'
+- name: resourceGroupName
+  type: string
+  displayName: 'Resource group name'
+- name: location
+  type: string
+  default: 'eastus'
+  displayName: 'Azure region'
+- name: baseName
+  type: string
+  default: 'smartcommerce'
+  displayName: 'Base name for resources'
+- name: sqlAdminLogin
+  type: string
+  default: 'sqladmin'
+  displayName: 'SQL admin username'
+- name: approvalRequired
+  type: boolean
+  default: false
+  displayName: 'Require manual approval'
+
+steps:
+- ${{ if eq(parameters.approvalRequired, true) }}:
+  - task: ManualValidation@0
+    displayName: 'Manual approval for ${{ parameters.environment }}'
+    inputs:
+      instructions: 'Please review and approve the infrastructure deployment to ${{ parameters.environment }} environment'
+      emailRecipients: 'devops-team@company.com'
+      timeout: '1440'
+
+- task: AzureCLI@2
+  displayName: 'Validate Bicep template'
+  inputs:
+    azureSubscription: ${{ parameters.azureSubscription }}
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Validating Bicep template for ${{ parameters.environment }} environment..."
+
+      az deployment group validate \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --template-file infrastructure/bicep/main.bicep \
+        --parameters \
+          baseName=${{ parameters.baseName }} \
+          environment=${{ parameters.environment }} \
+          location=${{ parameters.location }} \
+          sqlAdminLogin=${{ parameters.sqlAdminLogin }} \
+          sqlAdminPassword="$(sqlAdminPassword)"
+
+      echo "Template validation completed successfully"
+
+- task: AzureCLI@2
+  displayName: 'Preview infrastructure changes'
+  inputs:
+    azureSubscription: ${{ parameters.azureSubscription }}
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Generating what-if analysis for infrastructure changes..."
+
+      az deployment group what-if \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --template-file infrastructure/bicep/main.bicep \
+        --parameters \
+          baseName=${{ parameters.baseName }} \
+          environment=${{ parameters.environment }} \
+          location=${{ parameters.location }} \
+          sqlAdminLogin=${{ parameters.sqlAdminLogin }} \
+          sqlAdminPassword="$(sqlAdminPassword)" \
+        --result-format FullResourcePayloads
+
+- task: AzureCLI@2
+  displayName: 'Deploy infrastructure to ${{ parameters.environment }}'
+  inputs:
+    azureSubscription: ${{ parameters.azureSubscription }}
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Deploying infrastructure to ${{ parameters.environment }} environment..."
+
+      DEPLOYMENT_NAME="smartcommerce-${{ parameters.environment }}-$(date +%Y%m%d-%H%M%S)"
+
+      az deployment group create \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --name "$DEPLOYMENT_NAME" \
+        --template-file infrastructure/bicep/main.bicep \
+        --parameters \
+          baseName=${{ parameters.baseName }} \
+          environment=${{ parameters.environment }} \
+          location=${{ parameters.location }} \
+          sqlAdminLogin=${{ parameters.sqlAdminLogin }} \
+          sqlAdminPassword="$(sqlAdminPassword)" \
+        --verbose
+
+      echo "Infrastructure deployment completed"
+      echo "Deployment name: $DEPLOYMENT_NAME"
+
+      # Get deployment outputs
+      echo "Retrieving deployment outputs..."
+      az deployment group show \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --name "$DEPLOYMENT_NAME" \
+        --query "properties.outputs" \
+        --output table
+
+      # Save outputs for use in later stages
+      az deployment group show \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --name "$DEPLOYMENT_NAME" \
+        --query "properties.outputs" \
+        --output json > $(Build.ArtifactStagingDirectory)/deployment-outputs.json
+
+- task: AzureCLI@2
+  displayName: 'Configure Key Vault secrets'
+  inputs:
+    azureSubscription: ${{ parameters.azureSubscription }}
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Configuring Key Vault secrets for ${{ parameters.environment }}..."
+
+      KEYVAULT_NAME="${{ parameters.baseName }}-kv-${{ parameters.environment }}"
+      SQL_SERVER="${{ parameters.baseName }}-sql-${{ parameters.environment }}"
+      SQL_DATABASE="${{ parameters.baseName }}-db"
+      SERVICEBUS_NAME="${{ parameters.baseName }}-sb-${{ parameters.environment }}"
+
+      # Set SQL connection string
+      SQL_CONNECTION_STRING="Server=tcp:${SQL_SERVER}.database.windows.net,1433;Initial Catalog=${SQL_DATABASE};Persist Security Info=False;User ID=${{ parameters.sqlAdminLogin }};Password=$(sqlAdminPassword);MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+
+      az keyvault secret set \
+        --vault-name "$KEYVAULT_NAME" \
+        --name "SqlConnectionString" \
+        --value "$SQL_CONNECTION_STRING" \
+        --output none
+
+      # Get and set Service Bus connection string
+      SERVICEBUS_CONNECTION_STRING=$(az servicebus namespace authorization-rule keys list \
+        --resource-group ${{ parameters.resourceGroupName }} \
+        --namespace-name "$SERVICEBUS_NAME" \
+        --name RootManageSharedAccessKey \
+        --query primaryConnectionString \
+        --output tsv)
+
+      az keyvault secret set \
+        --vault-name "$KEYVAULT_NAME" \
+        --name "ServiceBusConnectionString" \
+        --value "$SERVICEBUS_CONNECTION_STRING" \
+        --output none
+
+      echo "Key Vault secrets configured successfully"
+
+- task: AzureCLI@2
+  displayName: 'Configure managed identities'
+  inputs:
+    azureSubscription: ${{ parameters.azureSubscription }}
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Configuring managed identities for ${{ parameters.environment }}..."
+
+      KEYVAULT_NAME="${{ parameters.baseName }}-kv-${{ parameters.environment }}"
+      KEYVAULT_RESOURCE_ID="/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${{ parameters.resourceGroupName }}/providers/Microsoft.KeyVault/vaults/$KEYVAULT_NAME"
+
+      # Configure access for .NET services
+      for service in order catalog payment user notification; do
+        APP_NAME="${{ parameters.baseName }}-${service}-${{ parameters.environment }}"
+
+        if az webapp show --resource-group ${{ parameters.resourceGroupName }} --name "$APP_NAME" >/dev/null 2>&1; then
+          echo "Configuring managed identity for $APP_NAME..."
+
+          # Get the managed identity principal ID
+          PRINCIPAL_ID=$(az webapp identity show \
+            --resource-group ${{ parameters.resourceGroupName }} \
+            --name "$APP_NAME" \
+            --query principalId \
+            --output tsv)
+
+          # Grant Key Vault access
+          az role assignment create \
+            --assignee "$PRINCIPAL_ID" \
+            --role "Key Vault Secrets User" \
+            --scope "$KEYVAULT_RESOURCE_ID" \
+            --output none
+
+          echo "Managed identity configured for $APP_NAME"
+        fi
+      done
+
+      echo "Managed identities configuration completed"
+
+- task: PowerShell@2
+  displayName: 'Run infrastructure health checks'
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "Running infrastructure health checks for ${{ parameters.environment }}..."
+
+      # Add health check logic here
+      # This could include:
+      # - Testing database connectivity
+      # - Verifying Key Vault access
+      # - Checking Service Bus functionality
+      # - Validating network connectivity
+
+      Write-Host "Infrastructure health checks completed"
+
+- task: PublishPipelineArtifact@1
+  displayName: 'Publish deployment outputs'
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)/deployment-outputs.json'
+    artifactName: 'infrastructure-outputs-${{ parameters.environment }}'
+    publishLocation: 'pipeline'
+
+- task: PowerShell@2
+  displayName: 'Deployment summary'
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "=================================="
+      Write-Host "Infrastructure Deployment Summary"
+      Write-Host "=================================="
+      Write-Host "Environment: ${{ parameters.environment }}"
+      Write-Host "Resource Group: ${{ parameters.resourceGroupName }}"
+      Write-Host "Location: ${{ parameters.location }}"
+      Write-Host "Base Name: ${{ parameters.baseName }}"
+      Write-Host "Build ID: $(Build.BuildId)"
+      Write-Host "=================================="

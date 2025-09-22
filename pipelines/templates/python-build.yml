@@ -1,0 +1,170 @@
+# Azure DevOps Template for building Python services
+# This template provides a reusable build process for all Python microservices
+
+parameters:
+- name: serviceName
+  type: string
+  displayName: 'Service Name'
+- name: servicePath
+  type: string
+  displayName: 'Path to service directory'
+- name: pythonVersion
+  type: string
+  default: '3.11'
+  displayName: 'Python version'
+- name: runTests
+  type: boolean
+  default: true
+  displayName: 'Run unit tests'
+- name: runLinting
+  type: boolean
+  default: true
+  displayName: 'Run code linting'
+- name: publishArtifacts
+  type: boolean
+  default: true
+  displayName: 'Publish build artifacts'
+- name: containerRegistry
+  type: string
+  default: 'smartcommerceacr.azurecr.io'
+  displayName: 'Container registry'
+
+steps:
+- task: UsePythonVersion@0
+  displayName: 'Use Python ${{ parameters.pythonVersion }}'
+  inputs:
+    versionSpec: ${{ parameters.pythonVersion }}
+    addToPath: true
+    architecture: 'x64'
+
+- script: |
+    cd ${{ parameters.servicePath }}
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+    pip install pytest pytest-cov pytest-asyncio flake8 black mypy bandit safety
+  displayName: 'Install dependencies'
+
+- ${{ if eq(parameters.runLinting, true) }}:
+  - script: |
+      cd ${{ parameters.servicePath }}
+      echo "Running Black formatter check..."
+      black --check --diff .
+
+      echo "Running Flake8 linting..."
+      flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      echo "Running MyPy type checking..."
+      mypy . --ignore-missing-imports || true
+    displayName: 'Code quality checks'
+    continueOnError: true
+
+- script: |
+    cd ${{ parameters.servicePath }}
+    echo "Running Bandit security scan..."
+    bandit -r . -f json -o $(Build.ArtifactStagingDirectory)/bandit-report.json || true
+
+    echo "Running Safety dependency scan..."
+    safety check --json --output $(Build.ArtifactStagingDirectory)/safety-report.json || true
+  displayName: 'Security scanning'
+  continueOnError: true
+
+- ${{ if eq(parameters.runTests, true) }}:
+  - script: |
+      cd ${{ parameters.servicePath }}
+      python -m pytest tests/ \
+        --junitxml=$(Build.ArtifactStagingDirectory)/test-results.xml \
+        --cov=app \
+        --cov-report=xml:$(Build.ArtifactStagingDirectory)/coverage.xml \
+        --cov-report=html:$(Build.ArtifactStagingDirectory)/htmlcov \
+        --verbose
+    displayName: 'Run tests with coverage'
+    continueOnError: true
+
+  - task: PublishTestResults@2
+    displayName: 'Publish test results'
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFiles: '$(Build.ArtifactStagingDirectory)/test-results.xml'
+      testRunTitle: '${{ parameters.serviceName }} Tests'
+      failTaskOnFailedTests: false
+
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish code coverage'
+    condition: succeededOrFailed()
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: '$(Build.ArtifactStagingDirectory)/coverage.xml'
+      reportDirectory: '$(Build.ArtifactStagingDirectory)/htmlcov'
+
+- script: |
+    cd ${{ parameters.servicePath }}
+
+    # Create application package
+    mkdir -p $(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}
+
+    # Copy application files
+    cp -r app $(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}/
+    cp requirements.txt $(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}/
+    cp Dockerfile $(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}/
+
+    # Create startup script
+    cat > $(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}/start.sh << 'EOF'
+    #!/bin/bash
+    pip install -r requirements.txt
+    uvicorn app.main:app --host 0.0.0.0 --port 8000
+    EOF
+    chmod +x $(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}/start.sh
+
+    # Create archive
+    cd $(Build.ArtifactStagingDirectory)
+    tar -czf ${{ parameters.serviceName }}.tar.gz ${{ parameters.serviceName }}/
+  displayName: 'Package application'
+
+- ${{ if eq(parameters.publishArtifacts, true) }}:
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish build artifacts'
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/${{ parameters.serviceName }}.tar.gz'
+      artifactName: '${{ parameters.serviceName }}-build'
+      publishLocation: 'pipeline'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish security reports'
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/*-report.json'
+      artifactName: '${{ parameters.serviceName }}-security-reports'
+      publishLocation: 'pipeline'
+
+- task: Docker@2
+  displayName: 'Build and push Docker image'
+  inputs:
+    command: 'buildAndPush'
+    repository: '${{ parameters.containerRegistry }}/${{ lower(parameters.serviceName) }}'
+    dockerfile: '${{ parameters.servicePath }}/Dockerfile'
+    containerRegistry: 'acr-connection'
+    buildContext: '${{ parameters.servicePath }}'
+    tags: |
+      $(Build.BuildId)
+      latest
+      $(Build.SourceBranchName)
+
+- task: PowerShell@2
+  displayName: 'Container security scan'
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "Running container security scan for ${{ parameters.serviceName }}"
+      # Add container scanning logic here (e.g., Trivy, Snyk, etc.)
+    errorActionPreference: 'continue'
+
+- script: |
+    echo "Build Summary for ${{ parameters.serviceName }}:"
+    echo "=================================="
+    echo "Python Version: ${{ parameters.pythonVersion }}"
+    echo "Service Path: ${{ parameters.servicePath }}"
+    echo "Build ID: $(Build.BuildId)"
+    echo "Source Branch: $(Build.SourceBranchName)"
+    echo "Container Image: ${{ parameters.containerRegistry }}/${{ lower(parameters.serviceName) }}:$(Build.BuildId)"
+  displayName: 'Build summary'

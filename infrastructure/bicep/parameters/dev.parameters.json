@@ -1,0 +1,99 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "baseName": {
+      "value": "smartcommerce"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "sqlAdminLogin": {
+      "value": "sqladmin"
+    },
+    "sqlAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{subscription-id}/resourceGroups/smartcommerce-shared-rg/providers/Microsoft.KeyVault/vaults/smartcommerce-shared-kv"
+        },
+        "secretName": "SqlAdminPassword"
+      }
+    },
+    "appServicePlanSku": {
+      "value": {
+        "name": "B1",
+        "tier": "Basic",
+        "capacity": 1
+      }
+    },
+    "containerAppsCpuLimit": {
+      "value": "0.5"
+    },
+    "containerAppsMemoryLimit": {
+      "value": "1Gi"
+    },
+    "sqlDatabaseSku": {
+      "value": {
+        "name": "Basic",
+        "tier": "Basic",
+        "capacity": 5
+      }
+    },
+    "redisCacheSku": {
+      "value": {
+        "name": "Basic",
+        "family": "C",
+        "capacity": 0
+      }
+    },
+    "serviceBusSku": {
+      "value": {
+        "name": "Standard",
+        "tier": "Standard"
+      }
+    },
+    "enableDetailedLogging": {
+      "value": true
+    },
+    "enableAutoScaling": {
+      "value": false
+    },
+    "minReplicas": {
+      "value": 1
+    },
+    "maxReplicas": {
+      "value": 3
+    },
+    "allowedOrigins": {
+      "value": [
+        "http://localhost:3000",
+        "https://localhost:3001",
+        "https://smartcommerce-web-dev.azurewebsites.net"
+      ]
+    },
+    "enableApplicationInsights": {
+      "value": true
+    },
+    "retentionInDays": {
+      "value": 30
+    },
+    "enableVirtualNetwork": {
+      "value": false
+    },
+    "enablePrivateEndpoints": {
+      "value": false
+    },
+    "tags": {
+      "value": {
+        "Environment": "Development",
+        "Project": "SmartCommerce",
+        "Owner": "Development Team",
+        "CostCenter": "Engineering",
+        "Purpose": "E-commerce Platform Development"
+      }
+    }
+  }
+}

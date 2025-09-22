@@ -1,0 +1,183 @@
+version: '3.8'
+
+# Development override for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # SQL Server - Development settings
+  sqlserver:
+    environment:
+      - MSSQL_SA_PASSWORD=DevPassword123!
+    volumes:
+      - ./scripts/init-databases.sql:/scripts/init-databases.sql
+    command: >
+      /bin/bash -c "
+      /opt/mssql/bin/sqlservr &
+      sleep 30 &&
+      /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P DevPassword123! -i /scripts/init-databases.sql &&
+      wait
+      "
+
+  # Redis - Development settings
+  redis:
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - ./scripts/redis-dev.conf:/usr/local/etc/redis/redis.conf
+
+  # Order Service - Development
+  order-service:
+    build:
+      context: ./services/dotnet-services
+      dockerfile: SmartCommerce.OrderService/Dockerfile
+      target: build
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__OrderDb=Server=sqlserver;Database=SmartCommerceOrderDb;User Id=sa;Password=DevPassword123!;TrustServerCertificate=true;
+      - ConnectionStrings__Redis=redis:6379
+      - ServiceBus__ConnectionString=UseDevelopmentStorage=true
+      - Logging__LogLevel__Default=Debug
+      - Logging__LogLevel__Microsoft=Information
+    volumes:
+      - ./services/dotnet-services/SmartCommerce.OrderService:/app
+      - /app/bin
+      - /app/obj
+    command: dotnet watch run --no-restore
+    stdin_open: true
+    tty: true
+
+  # Catalog Service - Development
+  catalog-service:
+    build:
+      context: ./services/dotnet-services
+      dockerfile: SmartCommerce.CatalogService/Dockerfile
+      target: build
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__CatalogDb=Server=sqlserver;Database=SmartCommerceCatalogDb;User Id=sa;Password=DevPassword123!;TrustServerCertificate=true;
+      - ConnectionStrings__Redis=redis:6379
+      - ServiceBus__ConnectionString=UseDevelopmentStorage=true
+      - Logging__LogLevel__Default=Debug
+    volumes:
+      - ./services/dotnet-services/SmartCommerce.CatalogService:/app
+      - /app/bin
+      - /app/obj
+    command: dotnet watch run --no-restore
+    stdin_open: true
+    tty: true
+
+  # Payment Service - Development
+  payment-service:
+    build:
+      context: ./services/dotnet-services
+      dockerfile: SmartCommerce.PaymentService/Dockerfile
+      target: build
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__PaymentDb=Server=sqlserver;Database=SmartCommercePaymentDb;User Id=sa;Password=DevPassword123!;TrustServerCertificate=true;
+      - ServiceBus__ConnectionString=UseDevelopmentStorage=true
+      - Stripe__SecretKey=sk_test_fake_key_for_development
+      - Logging__LogLevel__Default=Debug
+    volumes:
+      - ./services/dotnet-services/SmartCommerce.PaymentService:/app
+      - /app/bin
+      - /app/obj
+    command: dotnet watch run --no-restore
+    stdin_open: true
+    tty: true
+
+  # Recommendation Service - Development
+  recommendation-service:
+    build:
+      context: ./services/python-services/recommendation-engine
+      dockerfile: Dockerfile.dev
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_BUS_CONNECTION_STRING=UseDevelopmentStorage=true
+      - LOG_LEVEL=DEBUG
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./services/python-services/recommendation-engine/app:/app/app
+      - ./services/python-services/recommendation-engine/tests:/app/tests
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    stdin_open: true
+    tty: true
+
+  # Development Tools
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: smartcommerce-azurite
+    ports:
+      - "10000:10000"  # Blob service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    volumes:
+      - azurite_data:/data
+    networks:
+      - smartcommerce-network
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --location /data --debug /data/debug.log
+
+  # Mail server for development
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: smartcommerce-mailhog
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    networks:
+      - smartcommerce-network
+
+  # Database administration
+  sqlserver-admin:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smartcommerce-sqlserver-admin
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=DevPassword123!
+    volumes:
+      - ./scripts:/scripts
+    networks:
+      - smartcommerce-network
+    profiles:
+      - tools
+    command: /bin/bash -c "while true; do sleep 30; done"
+
+  # Redis CLI
+  redis-cli:
+    image: redis:7-alpine
+    container_name: smartcommerce-redis-cli
+    networks:
+      - smartcommerce-network
+    profiles:
+      - tools
+    command: /bin/sh -c "while true; do sleep 30; done"
+
+  # API Testing
+  newman:
+    image: postman/newman:alpine
+    container_name: smartcommerce-newman
+    volumes:
+      - ./tests/postman:/etc/newman
+    networks:
+      - smartcommerce-network
+    profiles:
+      - testing
+    command: newman run /etc/newman/SmartCommerce.postman_collection.json -e /etc/newman/development.postman_environment.json
+
+volumes:
+  azurite_data:
+    driver: local
+
+# Development-specific network configuration
+networks:
+  smartcommerce-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

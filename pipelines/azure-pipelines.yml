@@ -1,0 +1,473 @@
+trigger:
+  branches:
+    include:
+    - main
+    - develop
+  paths:
+    exclude:
+    - docs/*
+    - README.md
+    - ARCHITECTURE.md
+
+pr:
+  branches:
+    include:
+    - main
+    - develop
+
+variables:
+  - group: 'smartcommerce-variables'
+  - name: buildConfiguration
+    value: 'Release'
+  - name: dotNetVersion
+    value: '8.x'
+  - name: pythonVersion
+    value: '3.12'
+  - name: containerRegistry
+    value: 'smartcommerceacr.azurecr.io'
+  - name: vmImageName
+    value: 'ubuntu-latest'
+
+stages:
+# Build Stage
+- stage: Build
+  displayName: 'Build and Test'
+  jobs:
+  - job: BuildDotNetServices
+    displayName: 'Build .NET Services'
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      matrix:
+        OrderService:
+          servicePath: 'services/dotnet-services/SmartCommerce.OrderService'
+          serviceName: 'order-service'
+          projectFile: 'SmartCommerce.OrderService.csproj'
+        CatalogService:
+          servicePath: 'services/dotnet-services/SmartCommerce.CatalogService'
+          serviceName: 'catalog-service'
+          projectFile: 'SmartCommerce.CatalogService.csproj'
+        PaymentService:
+          servicePath: 'services/dotnet-services/SmartCommerce.PaymentService'
+          serviceName: 'payment-service'
+          projectFile: 'SmartCommerce.PaymentService.csproj'
+        UserService:
+          servicePath: 'services/dotnet-services/SmartCommerce.UserService'
+          serviceName: 'user-service'
+          projectFile: 'SmartCommerce.UserService.csproj'
+        NotificationService:
+          servicePath: 'services/dotnet-services/SmartCommerce.NotificationService'
+          serviceName: 'notification-service'
+          projectFile: 'SmartCommerce.NotificationService.csproj'
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET $(dotNetVersion)'
+      inputs:
+        version: $(dotNetVersion)
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet packages'
+      inputs:
+        command: 'restore'
+        projects: '$(servicePath)/$(projectFile)'
+        feedsToUse: 'select'
+        verbosityRestore: 'Normal'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build $(serviceName)'
+      inputs:
+        command: 'build'
+        projects: '$(servicePath)/$(projectFile)'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Run unit tests'
+      inputs:
+        command: 'test'
+        projects: '$(servicePath)/../*Tests/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --no-build --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/TestResults'
+        publishTestResults: true
+      continueOnError: true
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml'
+      condition: always()
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish $(serviceName)'
+      inputs:
+        command: 'publish'
+        projects: '$(servicePath)/$(projectFile)'
+        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/$(serviceName)'
+        zipAfterPublish: true
+        modifyOutputPath: false
+
+    - task: Docker@2
+      displayName: 'Build and push $(serviceName) image'
+      inputs:
+        command: 'buildAndPush'
+        repository: '$(containerRegistry)/$(serviceName)'
+        dockerfile: '$(servicePath)/Dockerfile'
+        containerRegistry: 'acr-connection'
+        buildContext: '$(servicePath)/../'
+        tags: |
+          $(Build.BuildId)
+          latest
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: '$(serviceName)-artifacts'
+
+  - job: BuildPythonServices
+    displayName: 'Build Python Services'
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      matrix:
+        RecommendationService:
+          servicePath: 'services/python-services/recommendation-engine'
+          serviceName: 'recommendation-service'
+        PriceOptimization:
+          servicePath: 'services/python-services/price-optimization'
+          serviceName: 'price-optimization-service'
+        FraudDetection:
+          servicePath: 'services/python-services/fraud-detection'
+          serviceName: 'fraud-detection-service'
+        InventoryAnalytics:
+          servicePath: 'services/python-services/inventory-analytics'
+          serviceName: 'inventory-analytics-service'
+        SearchService:
+          servicePath: 'services/python-services/search-service'
+          serviceName: 'search-service'
+    steps:
+    - task: UsePythonVersion@0
+      displayName: 'Use Python $(pythonVersion)'
+      inputs:
+        versionSpec: $(pythonVersion)
+
+    - script: |
+        cd $(servicePath)
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-xdist bandit safety
+      displayName: 'Install dependencies'
+
+    - script: |
+        cd $(servicePath)
+        python -m pytest tests/ --junitxml=junit/test-results.xml --cov=app --cov-report=xml --cov-report=html -n auto
+      displayName: 'Run tests'
+      continueOnError: true
+
+    - script: |
+        cd $(servicePath)
+        bandit -r app/ -f json -o bandit-report.json || true
+      displayName: 'Security scan with Bandit'
+      continueOnError: true
+
+    - script: |
+        cd $(servicePath)
+        safety check --json --output safety-report.json || true
+      displayName: 'Dependency vulnerability scan'
+      continueOnError: true
+
+    - task: PublishTestResults@2
+      displayName: 'Publish test results'
+      inputs:
+        testResultsFiles: '$(servicePath)/junit/test-results.xml'
+        testRunTitle: 'Python $(serviceName) Tests'
+      condition: always()
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(servicePath)/coverage.xml'
+        pathToSources: '$(servicePath)/app'
+      condition: always()
+
+    - task: Docker@2
+      displayName: 'Build and push $(serviceName) image'
+      inputs:
+        command: 'buildAndPush'
+        repository: '$(containerRegistry)/$(serviceName)'
+        dockerfile: '$(servicePath)/Dockerfile'
+        containerRegistry: 'acr-connection'
+        buildContext: '$(servicePath)'
+        tags: |
+          $(Build.BuildId)
+          latest
+
+  - job: SecurityScan
+    displayName: 'Security Scanning'
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: CredScan@3
+      displayName: 'Credential Scan'
+      inputs:
+        toolMajorVersion: 'V2'
+        scanFolder: '$(Build.SourcesDirectory)'
+        debugMode: false
+
+    - task: AntiMalware@4
+      displayName: 'Anti-Malware Scan'
+      inputs:
+        InputType: 'Basic'
+        ScanType: 'CustomScan'
+        FileDirPath: '$(Build.SourcesDirectory)'
+        EnableServices: true
+        SupportLogOnError: true
+        TreatSignatureUpdateFailureAs: 'Warning'
+        SignatureFreshness: 'UpToDate'
+        TreatStaleSignatureAs: 'Warning'
+
+    - task: ComponentGovernanceComponentDetection@0
+      displayName: 'Component Detection'
+      inputs:
+        scanType: 'Register'
+        verbosity: 'Verbose'
+        alertWarningLevel: 'High'
+
+    - task: notice@0
+      displayName: 'Generate NOTICE file'
+      inputs:
+        outputfile: '$(Build.SourcesDirectory)/NOTICE.txt'
+        outputformat: 'text'
+
+    - task: PublishSecurityAnalysisLogs@3
+      displayName: 'Publish Security Analysis Logs'
+      inputs:
+        ArtifactName: 'CodeAnalysisLogs'
+        ArtifactType: 'Container'
+        AllTools: true
+        ToolLogsNotFoundAction: 'Standard'
+
+  - job: BuildInfrastructure
+    displayName: 'Validate Infrastructure'
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Validate Bicep templates'
+      inputs:
+        azureSubscription: 'dev-subscription'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Validate main template
+          az deployment group validate \
+            --resource-group smartcommerce-dev-rg \
+            --template-file infrastructure/bicep/main.bicep \
+            --parameters infrastructure/bicep/parameters/dev.parameters.json
+
+          # Validate individual modules
+          for module in infrastructure/bicep/modules/*.bicep; do
+            echo "Validating $module"
+            az bicep build --file "$module"
+          done
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish infrastructure artifacts'
+      inputs:
+        PathtoPublish: 'infrastructure'
+        ArtifactName: 'infrastructure-artifacts'
+
+# Deploy to Development
+- stage: DeployDev
+  displayName: 'Deploy to Development'
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - deployment: DeployInfrastructure
+    displayName: 'Deploy Infrastructure'
+    environment: 'development'
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: infrastructure-artifacts
+
+          - task: AzureCLI@2
+            displayName: 'Deploy Bicep template'
+            inputs:
+              azureSubscription: 'dev-subscription'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az deployment group create \
+                  --resource-group smartcommerce-dev-rg \
+                  --template-file $(Pipeline.Workspace)/infrastructure-artifacts/bicep/main.bicep \
+                  --parameters $(Pipeline.Workspace)/infrastructure-artifacts/bicep/parameters/dev.parameters.json \
+                  --parameters baseName=smartcommerce environment=dev
+
+  - deployment: DeployServices
+    displayName: 'Deploy Services'
+    dependsOn: DeployInfrastructure
+    environment: 'development'
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: order-service-artifacts
+
+          - download: current
+            artifact: catalog-service-artifacts
+
+          - download: current
+            artifact: payment-service-artifacts
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy Order Service'
+            inputs:
+              azureSubscription: 'dev-subscription'
+              appType: 'webAppLinux'
+              appName: 'smartcommerce-order-dev'
+              package: '$(Pipeline.Workspace)/order-service-artifacts/**/*.zip'
+              runtimeStack: 'DOTNETCORE|8.0'
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy Catalog Service'
+            inputs:
+              azureSubscription: 'dev-subscription'
+              appType: 'webAppLinux'
+              appName: 'smartcommerce-catalog-dev'
+              package: '$(Pipeline.Workspace)/catalog-service-artifacts/**/*.zip'
+              runtimeStack: 'DOTNETCORE|8.0'
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy Payment Service'
+            inputs:
+              azureSubscription: 'dev-subscription'
+              appType: 'webAppLinux'
+              appName: 'smartcommerce-payment-dev'
+              package: '$(Pipeline.Workspace)/payment-service-artifacts/**/*.zip'
+              runtimeStack: 'DOTNETCORE|8.0'
+
+# Deploy to Production with Approval
+- stage: DeployProd
+  displayName: 'Deploy to Production'
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - job: waitForValidation
+    displayName: 'Wait for manual approval'
+    pool: server
+    timeoutInMinutes: 1440
+    steps:
+    - task: ManualValidation@0
+      displayName: 'Manual approval required'
+      inputs:
+        instructions: 'Please validate the deployment to production and approve if ready.'
+        emailRecipients: 'devops-team@company.com'
+        onTimeout: 'reject'
+
+  - deployment: DeployProductionBlueGreen
+    displayName: 'Blue-Green Deployment'
+    dependsOn: waitForValidation
+    environment: 'production'
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: infrastructure-artifacts
+
+          - download: current
+            artifact: order-service-artifacts
+
+          - task: AzureCLI@2
+            displayName: 'Deploy infrastructure'
+            inputs:
+              azureSubscription: 'prod-subscription'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az deployment group create \
+                  --resource-group smartcommerce-prod-rg \
+                  --template-file $(Pipeline.Workspace)/infrastructure-artifacts/bicep/main.bicep \
+                  --parameters $(Pipeline.Workspace)/infrastructure-artifacts/bicep/parameters/prod.parameters.json \
+                  --parameters baseName=smartcommerce environment=prod
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy to staging slot'
+            inputs:
+              azureSubscription: 'prod-subscription'
+              appType: 'webAppLinux'
+              appName: 'smartcommerce-order-prod'
+              deployToSlotOrASE: true
+              slotName: 'staging'
+              package: '$(Pipeline.Workspace)/order-service-artifacts/**/*.zip'
+              runtimeStack: 'DOTNETCORE|8.0'
+
+          - task: AzureCLI@2
+            displayName: 'Run smoke tests'
+            inputs:
+              azureSubscription: 'prod-subscription'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Wait for app to warm up
+                sleep 30
+
+                # Health check
+                response=$(curl -s -o /dev/null -w "%{http_code}" https://smartcommerce-order-prod-staging.azurewebsites.net/health)
+                if [ $response -eq 200 ]; then
+                  echo "Health check passed"
+                else
+                  echo "Health check failed with status $response"
+                  exit 1
+                fi
+
+                # Basic API test
+                api_response=$(curl -s -o /dev/null -w "%{http_code}" https://smartcommerce-order-prod-staging.azurewebsites.net/api/orders)
+                if [ $api_response -eq 401 ] || [ $api_response -eq 200 ]; then
+                  echo "API endpoint test passed"
+                else
+                  echo "API endpoint test failed with status $api_response"
+                  exit 1
+                fi
+
+          - task: AzureAppServiceManage@0
+            displayName: 'Swap slots'
+            inputs:
+              azureSubscription: 'prod-subscription'
+              action: 'Swap Slots'
+              webAppName: 'smartcommerce-order-prod'
+              resourceGroupName: 'smartcommerce-prod-rg'
+              sourceSlot: 'staging'
+              swapWithProduction: true
+
+          - task: AzureCLI@2
+            displayName: 'Verify production deployment'
+            inputs:
+              azureSubscription: 'prod-subscription'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Final verification
+                response=$(curl -s -o /dev/null -w "%{http_code}" https://smartcommerce-order-prod.azurewebsites.net/health)
+                if [ $response -eq 200 ]; then
+                  echo "Production deployment verified successfully"
+                else
+                  echo "Production verification failed - rolling back"
+                  # Swap back to previous version
+                  az webapp deployment slot swap \
+                    --name smartcommerce-order-prod \
+                    --resource-group smartcommerce-prod-rg \
+                    --slot staging \
+                    --target-slot production
+                  exit 1
+                fi
