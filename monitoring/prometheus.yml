@@ -1,0 +1,109 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # .NET Services
+  - job_name: 'order-service'
+    static_configs:
+      - targets: ['order-service:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'catalog-service'
+    static_configs:
+      - targets: ['catalog-service:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'payment-service'
+    static_configs:
+      - targets: ['payment-service:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'user-service'
+    static_configs:
+      - targets: ['user-service:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Python Services
+  - job_name: 'recommendation-service'
+    static_configs:
+      - targets: ['recommendation-service:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'price-optimization-service'
+    static_configs:
+      - targets: ['price-optimization-service:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'fraud-detection-service'
+    static_configs:
+      - targets: ['fraud-detection-service:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'inventory-analytics-service'
+    static_configs:
+      - targets: ['inventory-analytics-service:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'search-service'
+    static_configs:
+      - targets: ['search-service:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Infrastructure
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['api-gateway:80']
+    metrics_path: '/nginx_status'
+    scrape_interval: 30s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  - job_name: 'sqlserver'
+    static_configs:
+      - targets: ['sqlserver:1433']
+    scrape_interval: 60s
+
+  # Node Exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+# rule_files:
+#   - "alert_rules.yml"

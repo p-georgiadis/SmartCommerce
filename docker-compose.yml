@@ -51,7 +51,7 @@ services:
       - ConnectionStrings__Redis=redis:6379
       - ServiceBus__ConnectionString=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fake
     ports:
-      - "5001:8080"
+      - "5000:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -118,6 +118,66 @@ services:
       retries: 3
       start_period: 60s
 
+  # User Service
+  user-service:
+    build:
+      context: ./services/dotnet-services
+      dockerfile: SmartCommerce.UserService/Dockerfile
+    container_name: smartcommerce-user-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__UserDb=Server=sqlserver;Database=SmartCommerceUserDb;User Id=sa;Password=SmartCommerce2024!;TrustServerCertificate=true;
+      - ConnectionStrings__Redis=redis:6379
+      - ServiceBus__ConnectionString=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fake
+      - AzureAdB2C__Domain=smartcommerce.onmicrosoft.com
+      - AzureAdB2C__ClientId=fake-client-id
+      - AzureAdB2C__ClientSecret=fake-client-secret
+    ports:
+      - "5001:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - smartcommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/dotnet-services
+      dockerfile: SmartCommerce.NotificationService/Dockerfile
+    container_name: smartcommerce-notification-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__NotificationDb=Server=sqlserver;Database=SmartCommerceNotificationDb;User Id=sa;Password=SmartCommerce2024!;TrustServerCertificate=true;
+      - ConnectionStrings__Redis=redis:6379
+      - ServiceBus__ConnectionString=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fake
+      - SendGrid__ApiKey=fake-sendgrid-key
+      - Twilio__AccountSid=fake-twilio-sid
+      - Twilio__AuthToken=fake-twilio-token
+    ports:
+      - "5004:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - smartcommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   # Recommendation Service (Python)
   recommendation-service:
     build:
@@ -144,6 +204,115 @@ services:
       retries: 3
       start_period: 60s
 
+  # Price Optimization Service (Python)
+  price-optimization-service:
+    build:
+      context: ./services/python-services/price-optimization
+      dockerfile: Dockerfile
+    container_name: smartcommerce-price-optimization-service
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fake
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "8002:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - smartcommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Fraud Detection Service (Python)
+  fraud-detection-service:
+    build:
+      context: ./services/python-services/fraud-detection
+      dockerfile: Dockerfile
+    container_name: smartcommerce-fraud-detection-service
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fake
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "8003:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - smartcommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Inventory Analytics Service (Python)
+  inventory-analytics-service:
+    build:
+      context: ./services/python-services/inventory-analytics
+      dockerfile: Dockerfile
+    container_name: smartcommerce-inventory-analytics-service
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgresql://postgres:devpassword@postgres:5432/smartcommerce_dev
+      - SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fake
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "8004:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - smartcommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Search Service (Python)
+  search-service:
+    build:
+      context: ./services/python-services/search-service
+      dockerfile: Dockerfile
+    container_name: smartcommerce-search-service
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - DATABASE_URL=postgresql://postgres:devpassword@postgres:5432/smartcommerce_dev
+      - SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fake
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "8005:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - smartcommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   # API Gateway (nginx)
   api-gateway:
     image: nginx:alpine
@@ -158,7 +327,13 @@ services:
       - order-service
       - catalog-service
       - payment-service
+      - user-service
+      - notification-service
       - recommendation-service
+      - price-optimization-service
+      - fraud-detection-service
+      - inventory-analytics-service
+      - search-service
     networks:
       - smartcommerce-network
     healthcheck:
